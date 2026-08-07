@@ -9,6 +9,7 @@ let currentManageYear = null;
 
 function handleLogout() { 
     localStorage.removeItem('sessionToken'); 
+    localStorage.removeItem('userRole'); // <--- เพิ่มบรรทัดนี้
     window.location.href = "login.html"; 
 }
 
