@@ -1,5 +1,5 @@
 // เปลี่ยน URL ด้านล่างเป็นลิงก์ Web App ของคุณ (URL ที่ได้จากการ Deploy รอบล่าสุด)
-const GAS_URL = "https://script.google.com/macros/s/AKfycbxyhWhFH-KG4FlNdGm0J_dm8_IYqjzcpEhf-SNWUzksmX8rp-NpL3LRoDaJlwfVtnHe/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycby32LX4-2iN0zPA9EmhSneiX1Pz66uCMlBnqE2jiWtnVD8L9BG6zcLUyJ4Rh15WilT0uQ/exec";
 
 async function apiCall(action, args = {}) {
     const token = localStorage.getItem('sessionToken') || '';
