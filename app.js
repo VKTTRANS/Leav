@@ -1,0 +1,456 @@
+let userDetails = {}; 
+let holidayDataMap = []; 
+let myHistoryData = [];
+
+function handleLogout() { 
+    localStorage.removeItem('sessionToken'); 
+    window.location.href = "login.html"; 
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (!localStorage.getItem('sessionToken')) {
+        document.body.innerHTML = `<div style="text-align:center; padding:50px; color:white; font-family:'Prompt';"><h2><i class="fa-solid fa-triangle-exclamation"></i> เซสชันไม่ถูกต้อง</h2><br><a href="login.html" style="background:#10b981; color:white; padding:10px 20px; text-decoration:none; border-radius:50px;">ล็อกอินใหม่</a></div>`;
+        return;
+    }
+    injectMobileStyles(); 
+    injectCaptureTemplate(); 
+    createModalOnTheFly(); 
+    initCustomSelects(); 
+    injectFlatpickr();
+    initializePage(); 
+    setupEventListeners();
+});
+
+function injectCaptureTemplate() {
+    if (document.getElementById('hidden-capture-frame')) return;
+    const div = document.createElement('div'); 
+    div.id = 'hidden-capture-frame';
+    div.style.cssText = `position: fixed; top: 0; left: -9999px; width: 375px; min-height: 500px; background-color: white; border: 4px solid #10b981; border-radius: 20px; padding: 25px; box-sizing: border-box; font-family: 'Prompt', sans-serif; color: #333; z-index: 1;`;
+    div.innerHTML = `
+        <div style="text-align:center; margin-bottom:20px;">
+            <h2 style="color:#10b981; margin:0; font-size:26px; font-weight:800;">VKT LEAVE PASS</h2>
+            <p style="color:#777; margin:5px 0 0 0; font-size:12px;">ระบบจัดการการลา VKT & TRANSPORT</p>
+        </div>
+        <hr style="border:0; border-top:2px dashed #10b981; margin-bottom:20px;">
+        <div id="capture-content" style="font-size:14px; line-height:1.6;"></div>
+        <hr style="border:0; border-top:2px dashed #10b981; margin:20px 0;">
+        <div style="text-align:right; font-size:10px; color:#999;">ออกโดยระบบออนไลน์เมื่อ: <span id="capture-timestamp"></span></div>
+    `;
+    document.body.appendChild(div);
+}
+
+function injectMobileStyles() {
+    const style = document.createElement('style');
+    style.innerHTML = `
+        ::-webkit-scrollbar { width: 8px; height: 8px; } 
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; } 
+        ::-webkit-scrollbar-track { background: #1e293b; } 
+        .swal2-image { border-radius: 8px; border: 1px solid #334155; margin: 15px auto; display: block; box-shadow: 0 4px 10px rgba(0,0,0,0.3); } 
+        .swal-no-padding { padding: 0 !important; background: transparent !important; box-shadow: none !important; }
+    `;
+    document.head.appendChild(style);
+}
+
+function injectFlatpickr() {
+    const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = 'https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css'; document.head.appendChild(css);
+    const script = document.createElement('script'); script.src = 'https://cdn.jsdelivr.net/npm/flatpickr'; document.head.appendChild(script);
+    script.onload = () => {
+        const langScript = document.createElement('script'); langScript.src = 'https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/th.js'; document.head.appendChild(langScript);
+        langScript.onload = () => {
+            document.querySelectorAll('input[type="date"]').forEach(input => {
+                flatpickr(input, { locale: "th", disableMobile: true, dateFormat: "Y-m-d", onChange: function() { input.dispatchEvent(new Event('change')); manageFormLogic(); } });
+            });
+        };
+    };
+}
+
+function initCustomSelects() {
+    const overlay = document.createElement('div'); overlay.className = 'cs-overlay'; 
+    const sheet = document.createElement('div'); sheet.className = 'cs-sheet';
+    sheet.innerHTML = `<div class="cs-header"><h3 id="cs-title">กรุณาเลือก</h3><i class="fa-solid fa-xmark cs-close" id="cs-close"></i></div><div class="cs-options" id="cs-options"></div>`;
+    document.body.appendChild(overlay); document.body.appendChild(sheet);
+    
+    function closeSheet() { overlay.classList.remove('active'); sheet.classList.remove('active'); }
+    overlay.addEventListener('click', closeSheet); 
+    document.getElementById('cs-close').addEventListener('click', closeSheet);
+    
+    document.querySelectorAll('.form-group select').forEach(select => {
+        select.style.display = 'none'; 
+        const fakeInput = document.createElement('div'); fakeInput.className = 'fake-select';
+        
+        const updateText = () => { 
+            let text = select.options.length > 0 && select.selectedIndex >= 0 ? select.options[select.selectedIndex].text : '-- กรุณาเลือก --'; 
+            let color = (select.value === "") ? '#94a3b8' : '#fff'; 
+            fakeInput.innerHTML = `<span class="sel-text" style="color:${color};">${text}</span><i class="fa-solid fa-chevron-down" style="color:#64748b;"></i>`; 
+        };
+        updateText(); 
+        select.parentNode.insertBefore(fakeInput, select); 
+        select.addEventListener('change', updateText);
+        
+        fakeInput.addEventListener('click', (e) => {
+            e.preventDefault(); 
+            const labelEl = select.parentNode.querySelector('label'); 
+            let titleText = 'เลือกข้อมูล'; 
+            if(labelEl) { titleText = labelEl.innerHTML.replace(/\<span.*\<\/span\>/g, '').replace(/\<i.*\<\/i\>/g, '').trim(); }
+            document.getElementById('cs-title').innerText = titleText; 
+            const optionsContainer = document.getElementById('cs-options'); optionsContainer.innerHTML = '';
+            
+            Array.from(select.options).forEach(opt => { 
+                if (opt.value === "") return; 
+                const optDiv = document.createElement('div'); 
+                optDiv.className = 'cs-option' + (select.value === opt.value ? ' selected' : ''); 
+                optDiv.innerHTML = `<span>${opt.text}</span>${select.value === opt.value ? '<i class="fa-solid fa-circle-check"></i>' : ''}`;
+                optDiv.onclick = () => { select.value = opt.value; select.dispatchEvent(new Event('change')); closeSheet(); }; 
+                optionsContainer.appendChild(optDiv);
+            });
+            overlay.classList.add('active'); sheet.classList.add('active');
+        });
+    });
+}
+
+async function initializePage() {
+    try {
+        const res = await apiCall('getInitialIndexData');
+        if (res.success) {
+            document.querySelector('.container').style.display = 'block';
+            userDetails = res.data.userDetails; 
+            holidayDataMap = res.data.holidays || []; 
+            window.annualHolidays = holidayDataMap.map(h => h.date);
+            
+            let displayName = userDetails.fullName; 
+            if (userDetails.nickname) displayName = `${userDetails.fullName} (${userDetails.nickname})`;
+            document.getElementById('user-fullname').innerText = displayName;
+            
+            updateLeaveOptions(userDetails.gender); 
+            displayLeaveBalance(res.data.leaveBalance); 
+            displayLeaveHistory(res.data.leaveHistory);
+            
+            const locSelect = document.getElementById('user-location'); 
+            locSelect.innerHTML = ''; 
+            locSelect.add(new Option("-- กรุณาเลือกสถานที่ --", ""));
+            
+            if (res.data.locations && res.data.locations.length > 0) { 
+                res.data.locations.forEach(loc => { locSelect.appendChild(new Option(loc, loc)); }); 
+            }
+            locSelect.dispatchEvent(new Event('change'));
+        } else {
+            localStorage.removeItem('sessionToken');
+            document.body.innerHTML = `<div style="text-align:center; padding:50px; color:white; font-family:'Prompt';"><h2><i class="fa-solid fa-triangle-exclamation"></i> ${res.message}</h2><br><a href="login.html" style="background:#10b981; color:white; padding:10px 20px; text-decoration:none; border-radius:50px;">กลับไปหน้าล็อกอิน</a></div>`;
+        }
+    } catch(e) { 
+        localStorage.removeItem('sessionToken'); 
+        window.location.href = 'login.html'; 
+    }
+}
+
+function setupEventListeners() {
+    document.getElementById('submit-btn').onclick = submitForm;
+    document.getElementById('start-date').onchange = manageFormLogic; 
+    document.getElementById('end-date').onchange = manageFormLogic; 
+    document.getElementById('leave-unit').onchange = manageFormLogic;
+    document.getElementById('change-password-link').onclick = (e) => { e.preventDefault(); document.getElementById('password-modal').style.display = 'block'; };
+    document.getElementById('save-password-btn').onclick = changePassword;
+}
+
+function createModalOnTheFly() {
+    if (document.getElementById('user-history-detail-modal')) return;
+    const modalHTML = `
+      <div id="user-history-detail-modal" class="modal">
+          <div class="modal-content">
+              <div class="modal-header">
+                  <h2><i class="fas fa-info-circle"></i> รายละเอียดการลา</h2>
+                  <span class="close-history-btn" style="color:#94a3b8; font-size:24px; cursor:pointer;">&times;</span>
+              </div>
+              <div class="modal-body">
+                  <div style="display:flex; border-bottom:1px solid rgba(255,255,255,0.05); padding:10px 0;"><div style="width:110px; font-weight:bold; color:#93c5fd;">ID:</div><div id="uhd-id" style="color:#f1f5f9;"></div></div>
+                  <div style="display:flex; border-bottom:1px solid rgba(255,255,255,0.05); padding:10px 0;"><div style="width:110px; font-weight:bold; color:#93c5fd;">ประเภท:</div><div id="uhd-type" style="color:#f1f5f9;"></div></div>
+                  <div style="display:flex; border-bottom:1px solid rgba(255,255,255,0.05); padding:10px 0;"><div style="width:110px; font-weight:bold; color:#93c5fd;">สถานที่:</div><div id="uhd-location" style="color:#f1f5f9;"></div></div>
+                  <div style="display:flex; border-bottom:1px solid rgba(255,255,255,0.05); padding:10px 0;"><div style="width:110px; font-weight:bold; color:#93c5fd;">ระยะเวลา:</div><div id="uhd-date" style="color:#f1f5f9;"></div></div>
+                  <div style="display:flex; border-bottom:1px solid rgba(255,255,255,0.05); padding:10px 0;"><div style="width:110px; font-weight:bold; color:#93c5fd;">จำนวนวัน:</div><div style="color:#f1f5f9;"><span id="uhd-days" style="font-weight:bold; color:#10b981;"></span><span id="uhd-days-detail" style="font-size:0.85em; color:#94a3b8; margin-left:5px;"></span></div></div>
+                  <div id="uhd-holiday-zone" style="display:none; background:rgba(239, 68, 68, 0.1); color:#fca5a5; padding:10px; border-radius:8px; border:1px solid rgba(239, 68, 68, 0.2); margin-top:10px;">
+                      <div style="display:flex; justify-content:space-between; font-weight:bold; margin-bottom:5px;"><span>วันหยุดรวม:</span><span id="uhd-hol-count"></span></div>
+                      <div style="font-size:0.9em; color:#fca5a5;"><span>รายการ: </span><span id="uhd-hol-list"></span></div>
+                  </div>
+                  <div style="display:flex; border-bottom:1px solid rgba(255,255,255,0.05); padding:10px 0;"><div style="width:110px; font-weight:bold; color:#93c5fd;">สถานะ:</div><div id="uhd-status" style="font-weight:bold;"></div></div>
+                  <div style="margin-top:20px;"><div style="font-weight:bold; color:#93c5fd; margin-bottom:8px;">เหตุผลการลา:</div><div id="uhd-reason" style="background:rgba(0,0,0,0.2); padding:12px; border-radius:8px; border:1px solid rgba(255,255,255,0.05); white-space:pre-wrap; color:#cbd5e1;"></div></div>
+              </div>
+              <div class="modal-footer"><button id="btn-close-detail" class="secondary-btn">ปิด</button></div>
+          </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    document.querySelector('.close-history-btn').onclick = () => document.getElementById('user-history-detail-modal').style.display = 'none';
+    document.getElementById('btn-close-detail').onclick = () => document.getElementById('user-history-detail-modal').style.display = 'none';
+}
+
+function openUserHistoryDetail(id) {
+    const item = myHistoryData.find(x => x.requestID === id); if (!item) return;
+    document.getElementById('uhd-id').innerText = item.requestID; 
+    document.getElementById('uhd-type').innerText = item.leaveType; 
+    document.getElementById('uhd-location').innerText = item.location || '-'; 
+    document.getElementById('uhd-date').innerText = `${item.startDate} ถึง ${item.endDate}`;
+    
+    if (item.deductDays !== undefined) { 
+        document.getElementById('uhd-days').innerText = item.deductDays + " วัน"; 
+        document.getElementById('uhd-days-detail').innerText = `(รวม: ${item.totalDays} วัน)`; 
+    } else { 
+        document.getElementById('uhd-days').innerText = item.totalDays + " วัน"; 
+        document.getElementById('uhd-days-detail').innerText = ""; 
+    }
+    
+    const holZone = document.getElementById('uhd-holiday-zone'); 
+    if (item.holidayCount > 0) { 
+        holZone.style.display = 'block'; 
+        document.getElementById('uhd-hol-count').innerText = item.holidayCount + " วัน"; 
+        document.getElementById('uhd-hol-list').innerText = item.holidayFound || "-"; 
+    } else { 
+        holZone.style.display = 'none'; 
+    }
+    
+    const statusEl = document.getElementById('uhd-status'); statusEl.innerText = item.status; 
+    statusEl.style.color = (item.status === 'Approved') ? '#10b981' : (item.status === 'Rejected' || item.status === 'Canceled') ? '#ef4444' : '#fde047';
+    document.getElementById('uhd-reason').innerText = item.reason || '-'; 
+    document.getElementById('user-history-detail-modal').style.display = 'block';
+}
+
+function updateLeaveOptions(gender) {
+    const sel = document.getElementById('leave-type'); const specs = ["ลาบวช", "ลาช่วยภรรยาคลอดบุตร", "ลาคลอด"];
+    for (let i = sel.options.length - 1; i >= 0; i--) { if (specs.includes(sel.options[i].value)) sel.remove(i); }
+    if (gender === 'ชาย') { 
+        sel.add(new Option('ลาบวช', 'ลาบวช')); 
+        sel.add(new Option('ลาช่วยภรรยาคลอดบุตร', 'ลาช่วยภรรยาคลอดบุตร')); 
+    } else { 
+        sel.add(new Option('ลาคลอด', 'ลาคลอด')); 
+    }
+    sel.selectedIndex = 0; sel.dispatchEvent(new Event('change'));
+}
+
+function manageFormLogic() {
+    const s = document.getElementById('start-date').value; 
+    const e = document.getElementById('end-date'); 
+    const u = document.getElementById('leave-unit').value;
+    
+    if (u.startsWith("ครึ่งวัน") && s) { 
+        e.value = s; 
+        e.disabled = true; 
+        if(e._flatpickr) e._flatpickr.setDate(s); 
+    } else { 
+        e.disabled = false; 
+    } 
+    calculateDays();
+}
+
+function calculateDays() {
+    const s = document.getElementById('start-date').value; 
+    const e = document.getElementById('end-date').value; 
+    const u = document.getElementById('leave-unit').value; 
+    const t = document.getElementById('total-leave-days');
+    
+    if (!s || !e) { t.innerText = '0'; return; } 
+    
+    let d = 0; let curr = new Date(s); let end = new Date(e);
+    while (curr <= end) { 
+        if (curr.getDay() !== 0 && !window.annualHolidays.includes(curr.toLocaleDateString('en-CA'))) d++; 
+        curr.setDate(curr.getDate() + 1); 
+    }
+    if (d === 1 && u.startsWith("ครึ่งวัน")) d = 0.5; 
+    t.innerText = d;
+}
+
+function resetForm() {
+    document.getElementById('leave-type').selectedIndex = 0; document.getElementById('leave-type').dispatchEvent(new Event('change'));
+    document.getElementById('leave-unit').selectedIndex = 0; document.getElementById('leave-unit').dispatchEvent(new Event('change'));
+    document.getElementById('start-date').value = ''; document.getElementById('end-date').value = ''; document.getElementById('end-date').disabled = false; 
+    document.querySelectorAll('input[type="date"]').forEach(el => { if(el._flatpickr) el._flatpickr.clear(); });
+    document.getElementById('reason').value = ''; document.getElementById('total-leave-days').innerText = '0'; 
+    document.getElementById('user-location').selectedIndex = 0; document.getElementById('user-location').dispatchEvent(new Event('change'));
+}
+
+function getAuditData(start, end, unit, reason, location, type) {
+    let workingDays = [], holsFound = [], calendarDays = 0; 
+    let curr = new Date(start); let last = new Date(end);
+    
+    while (curr <= last) { 
+        calendarDays++; 
+        let dateISO = curr.toLocaleDateString('en-CA'); 
+        let dateTH = curr.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+        const holidayObj = holidayDataMap.find(h => h.date === dateISO);
+        
+        if (curr.getDay() === 0) holsFound.push(dateTH + " (วันอาทิตย์)"); 
+        else if (holidayObj) holsFound.push(dateTH + " (" + holidayObj.name + ")"); 
+        else workingDays.push(dateTH);
+        curr.setDate(curr.getDate() + 1);
+    }
+    let actualVal = workingDays.length; 
+    if (actualVal === 1 && unit.startsWith("ครึ่งวัน")) { actualVal = 0.5; calendarDays -= 0.5; }
+    
+    return { working: workingDays.join(', '), hols: holsFound, leaveVal: actualVal, grandTotal: calendarDays, type: type, unit: unit, start: start, end: end, reason: reason, location: location };
+}
+
+async function submitForm() {
+    const data = { 
+        leaveType: document.getElementById('leave-type').value, 
+        leaveUnit: document.getElementById('leave-unit').value, 
+        startDate: document.getElementById('start-date').value, 
+        endDate: document.getElementById('end-date').value, 
+        reason: document.getElementById('reason').value, 
+        location: document.getElementById('user-location').value 
+    };
+    
+    if (!data.location) { Swal.fire('ข้อมูลไม่ครบ', 'กรุณาเลือกสถานที่ปฏิบัติงาน', 'warning'); return; }
+    if (!data.startDate || !data.reason || document.getElementById('total-leave-days').innerText == '0') { Swal.fire('ข้อมูลไม่ครบ', 'กรุณากรอกวันที่และเหตุผล', 'warning'); return; }
+    
+    Swal.fire({ title: 'กำลังส่ง...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    try {
+        const res = await apiCall('processLeaveRequest', data);
+        Swal.close();
+        if(res.success) {
+            const audit = getAuditData(data.startDate, data.endDate, data.leaveUnit, data.reason, data.location, data.leaveType);
+            showSummaryPopup(audit); 
+            resetForm(); 
+            initializePage();
+        } else { 
+            Swal.fire('ผิดพลาด', res.message, 'error'); 
+        }
+    } catch(e) { Swal.fire('Error', e.message, 'error'); }
+}
+
+function showSummaryPopup(audit) {
+    const timestamp = new Date().toLocaleString('th-TH'); 
+    let holItems = audit.hols.length > 0 ? audit.hols.join(', ') : '-';
+    let displayName = userDetails.fullName; 
+    if (userDetails.nickname) { displayName = `${userDetails.fullName} (${userDetails.nickname})`; }
+    
+    let holidayHtml = ''; 
+    if(audit.hols.length > 0) { 
+        holidayHtml = `<div style="background:#fff1f2; padding:10px; border-radius:10px; margin-bottom:10px;"><div style="display:flex; justify-content:space-between; color:#e11d48; font-weight:bold;"><span>วันหยุดรวม:</span><span>${audit.grandTotal} วัน</span></div><div style="font-size:11px; color:#e11d48; margin-top:5px; text-align:right;">${audit.hols.join(', ')}</div></div>`; 
+    }
+    
+    const html = `
+        <div style="background:white; color:#333; padding:25px; border: 4px solid #10b981; border-radius:20px; text-align:left; font-family:'Prompt'; position: relative;">
+            <div style="text-align:center; margin-bottom:15px;">
+                <h2 style="color:#10b981; margin:0; font-size:26px; font-weight:800;">VKT LEAVE PASS</h2>
+                <p style="color:#777; margin:5px 0 0 0; font-size:12px;">ระบบจัดการการลา VKT & TRANSPORT</p>
+            </div>
+            <hr style="border:0; border-top:2px dashed #10b981; margin-bottom:15px;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span style="font-weight:bold; color:#555;">ผู้ลา:</span><span style="font-weight:bold;">${displayName}</span></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span style="font-weight:bold; color:#555;">ประเภท:</span><span>${audit.type} (${audit.unit})</span></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span style="font-weight:bold; color:#555;">สถานที่:</span><span>${audit.location || '-'}</span></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span style="font-weight:bold; color:#555;">ระยะเวลา:</span><span>${audit.start} ถึง ${audit.end}</span></div>
+            <div style="display:flex; justify-content:space-between; margin-top:15px; margin-bottom:15px; align-items:center;"><span style="font-weight:bold; color:#555;">วันลาจริง:</span><span style="color:#10b981; font-size:24px; font-weight:bold;">${audit.leaveVal} วัน</span></div>
+            <div style="font-size:12px; color:#999; margin-bottom:10px;">วันที่หัก: ${audit.working}</div>
+            ${holidayHtml}
+            <div style="margin-top:10px;"><span style="font-weight:bold; color:#555;">เหตุผล:</span><div style="background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0; margin-top:5px; font-size:14px;">${audit.reason}</div></div>
+            <hr style="border:0; border-top:2px dashed #10b981; margin:15px 0;">
+            <div style="text-align:right; font-size:10px; color:#999;">ออกโดยระบบออนไลน์เมื่อ: ${timestamp}</div>
+        </div>`;
+    
+    Swal.fire({ html: html, showCancelButton: true, confirmButtonText: '💾 บันทึกรูป', cancelButtonText: 'ปิด', confirmButtonColor: '#10b981', cancelButtonColor: '#475569', background: 'transparent', customClass: { popup: 'swal-no-padding' }, padding: 0 }).then(result => { 
+        if (result.isConfirmed) saveCapture(audit); 
+    });
+}
+
+function saveCapture(audit) {
+    const loadingToast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
+    loadingToast.fire({ icon: 'info', title: 'กำลังสร้างรูปภาพ...' });
+    fillCaptureContent(audit);
+    const captureFrame = document.getElementById('hidden-capture-frame');
+    html2canvas(captureFrame, { scale: 2, useCORS: true, backgroundColor: '#ffffff', width: 375, windowWidth: 375 }).then(canvas => {
+        Swal.fire({ title: 'บันทึกรูปภาพ', text: 'แตะค้างที่รูปภาพเพื่อบันทึก', imageUrl: canvas.toDataURL('image/png'), imageAlt: 'Pass', showConfirmButton: true, confirmButtonText: 'ปิด' });
+    });
+}
+
+function fillCaptureContent(audit) {
+    const container = document.getElementById('capture-content');
+    let holItems = audit.hols.length > 0 ? audit.hols.join(', ') : '-';
+    let displayName = userDetails.fullName; 
+    if (userDetails.nickname) { displayName = `${userDetails.fullName} (${userDetails.nickname})`; }
+    
+    let holidayHtml = ''; 
+    if(audit.hols.length > 0) { holidayHtml = `<div style="background:#fff1f2; padding:10px; border-radius:10px; margin-bottom:10px;"><div style="display:flex; justify-content:space-between; color:#e11d48; font-weight:bold;"><span>วันหยุดรวม:</span><span>${audit.grandTotal} วัน</span></div><div style="font-size:11px; color:#e11d48; margin-top:5px;">${holItems}</div></div>`; }
+    
+    const row = (l, v, c='black', s='14px') => `<div style="display:flex; justify-content:space-between; margin-bottom:10px; border-bottom:1px solid #f1f5f9; padding-bottom:5px;"><span style="font-weight:bold; color:#555;">${l}</span><span style="text-align:right; color:${c}; font-size:${s}; font-weight:bold;">${v}</span></div>`;
+    
+    container.innerHTML = 
+        row('ผู้ลา:', displayName) + 
+        row('ประเภท:', `${audit.type} (${audit.unit})`) + 
+        row('สถานที่:', audit.location || '-') + 
+        row('ระยะเวลา:', `${audit.start} ถึง ${audit.end}`) + 
+        row('วันลาจริง:', `${audit.leaveVal} วัน`, '#10b981', '18px') + 
+        `<div style="font-size:12px; color:#999; margin-bottom:10px;">วันที่หัก: ${audit.working}</div>` + 
+        holidayHtml + 
+        `<div style="margin-top:10px;"><span style="font-weight:bold; color:#555;">เหตุผล:</span><div style="background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0; margin-top:5px; font-size:13px;">${audit.reason}</div></div>`;
+    document.getElementById('capture-timestamp').innerText = new Date().toLocaleString('th-TH');
+}
+
+function displayLeaveBalance(bal) {
+    const cont = document.getElementById('balance-container'); cont.innerHTML = ''; 
+    const isMale = userDetails.gender === 'ชาย';
+    Object.keys(bal).forEach(k => { 
+        if (isMale && k === 'ลาคลอด') return; 
+        if (!isMale && (k === 'ลาบวช' || k === 'ลาช่วยภรรยาคลอดบุตร')) return; 
+        cont.innerHTML += `<div class="balance-card"><div class="days">${bal[k]}</div><div class="type">${k}</div></div>`; 
+    });
+}
+
+function displayLeaveHistory(hist) {
+    myHistoryData = hist; const tbody = document.getElementById('history-tbody'); tbody.innerHTML = '';
+    hist.forEach(h => {
+        const btnView = `<button onclick="openUserHistoryDetail('${h.requestID}')" class="btn-action btn-view-detail" title="ดูรายละเอียด"><i class="fas fa-eye"></i></button>`;
+        const btnSave = `<button onclick="reAction('${h.requestID}', 'save')" class="btn-action btn-save" title="บันทึกรูป"><i class="fas fa-save"></i></button>`;
+        const btnCancel = h.status === 'Pending' ? `<button onclick="cancelReq('${h.requestID}')" class="btn-action btn-cancel" title="ยกเลิก"><i class="fas fa-times"></i></button>` : '';
+        const reasonDisplay = h.reason ? (h.reason.length > 20 ? h.reason.substring(0,20)+'...' : h.reason) : "-";
+        
+        tbody.innerHTML += `
+        <tr>
+            <td data-label="ประเภท"><span style="font-weight:600; font-size:0.9em;">${h.leaveType}</span></td>
+            <td data-label="เริ่ม">${h.startDate}</td>
+            <td data-label="สิ้นสุด">${h.endDate}</td>
+            <td data-label="เหตุผล"><span class="reason-truncate">${reasonDisplay}</span></td>
+            <td data-label="สถานะ"><span class="status-pill status-${h.status}">${h.status}</span></td>
+            <td data-label="จัดการ"><div class="action-column">${btnView}${btnSave}${btnCancel}</div></td>
+        </tr>`;
+    });
+}
+
+async function reAction(id, type) {
+    try {
+        const res = await apiCall('getInitialIndexData');
+        const leave = res.data.leaveHistory.find(x => x.requestID === id);
+        if(leave) {
+            const audit = getAuditData(leave.startDate, leave.endDate, leave.leaveUnit||"เต็มวัน", leave.reason, leave.location, leave.leaveType);
+            if (type === 'save') saveCapture(audit); 
+        }
+    } catch(e) {
+        console.error(e);
+    }
+}
+
+function cancelReq(id) {
+    Swal.fire({ title: 'ยกเลิกใบลา?', text: "ID: " + id, icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33' }).then(async r => {
+        if (r.isConfirmed) {
+            try { 
+                await apiCall('cancelLeaveRequest', id); 
+                Swal.fire('สำเร็จ', 'ยกเลิกแล้ว', 'success'); 
+                initializePage(); 
+            } catch(e) {
+                Swal.fire('Error', e.message, 'error');
+            }
+        }
+    });
+}
+
+async function changePassword() {
+    const cur = document.getElementById('current-password').value; 
+    const newP = document.getElementById('new-password').value;
+    if (newP !== document.getElementById('confirm-password').value) {
+        return Swal.fire('ผิดพลาด', 'รหัสผ่านไม่ตรงกัน', 'error');
+    }
+    
+    try {
+        const res = await apiCall('updateUserPassword', { currentPassword: cur, newPassword: newP });
+        Swal.fire(res.success ? 'สำเร็จ' : 'ผิดพลาด', res.message, res.success ? 'success' : 'error');
+        if (res.success) document.getElementById('password-modal').style.display = 'none';
+    } catch(e) { 
+        Swal.fire('Error', e.message, 'error'); 
+    }
+}

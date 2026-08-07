@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VKT Leave System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+      :root { --primary: #10b981; --text-color: #f1f5f9; }
+      * { box-sizing: border-box; outline: none; }
+      body { margin: 0; font-family: 'Prompt', sans-serif; height: 100vh; display: flex; justify-content: center; align-items: center; background: #020617; overflow: hidden; color: var(--text-color); }
+      .speed-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; transform: skewY(-5deg); pointer-events: none; z-index: -1; background: linear-gradient(to bottom, #020617 0%, #0f172a 100%); }
+      .streak { position: absolute; background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.8), rgba(250, 204, 21, 0.8), transparent); height: 3px; width: 200px; top: 50%; left: -300px; opacity: 0; filter: blur(2px); box-shadow: 0 0 10px rgba(16, 185, 129, 0.5); }
+      @keyframes flashRun { 0% { transform: translateX(0) scaleX(0.5); opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { transform: translateX(150vw) scaleX(2); opacity: 0; } }
+      .streak:nth-child(1) { top: 10%; width: 300px; height: 4px; animation: flashRun 1.2s linear infinite; animation-delay: 0s; }
+      .streak:nth-child(2) { top: 25%; width: 150px; height: 2px; animation: flashRun 0.8s linear infinite; animation-delay: 0.5s; opacity: 0.6; }
+      .streak:nth-child(3) { top: 40%; width: 400px; height: 5px; animation: flashRun 1.5s linear infinite; animation-delay: 0.2s; background: linear-gradient(90deg, transparent, #fde047, transparent); }
+      .streak:nth-child(4) { top: 55%; width: 200px; height: 3px; animation: flashRun 1s linear infinite; animation-delay: 0.8s; }
+      .streak:nth-child(5) { top: 70%; width: 250px; height: 2px; animation: flashRun 0.6s linear infinite; animation-delay: 0.1s; opacity: 0.5; }
+      .login-container { position: relative; width: 100%; padding: 20px; display: flex; justify-content: center; z-index: 10; }
+      .card { background: rgba(10, 10, 10, 0.75); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8); border-radius: 24px; padding: 40px 30px; width: 100%; max-width: 380px; text-align: center; animation: floatUp 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+      @keyframes floatUp { from { opacity: 0; transform: translateY(50px) scale(0.9); } to { opacity: 1; transform: translateY(0) scale(1); } }
+      .logo-box { width: 70px; height: 70px; background: linear-gradient(135deg, #10b981, #fde047); border-radius: 50%; margin: 0 auto 15px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 25px rgba(16, 185, 129, 0.5); }
+      .logo-box svg { width: 35px; fill: #020617; }
+      h2 { margin: 10px 0 5px; font-weight: 600; font-size: 24px; color: #fff; }
+      .subtitle { font-size: 14px; color: #94a3b8; margin-bottom: 30px; }
+      .form-group { position: relative; margin-bottom: 20px; text-align: left; }
+      .form-group i { position: absolute; left: 20px; top: 50%; transform: translateY(-50%); color: #64748b; transition: 0.3s; }
+      input { width: 100%; padding: 14px 20px 14px 50px; background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(255,255,255,0.05); border-radius: 50px; color: #fff; font-family: 'Prompt', sans-serif; font-size: 15px; transition: 0.3s; }
+      input:focus { background: rgba(30, 41, 59, 0.9); border-color: var(--primary); box-shadow: 0 0 15px rgba(16, 185, 129, 0.3); }
+      input:focus + i { color: var(--primary); }
+      button { width: 100%; padding: 14px; border: none; border-radius: 50px; background: linear-gradient(90deg, #10b981, #059669, #fde047); background-size: 200% auto; color: #020617; font-family: 'Prompt', sans-serif; font-size: 16px; font-weight: 700; cursor: pointer; transition: 0.3s; box-shadow: 0 5px 20px rgba(16, 185, 129, 0.4); display: flex; justify-content: center; align-items: center; gap: 10px; }
+      button:hover { background-position: right center; transform: translateY(-3px) scale(1.02); box-shadow: 0 10px 30px rgba(16, 185, 129, 0.6); }
+      button:disabled { background: #475569; color: #94a3b8; cursor: not-allowed; transform: none; box-shadow: none; }
+      .spinner { width: 18px; height: 18px; border: 3px solid rgba(0,0,0,0.2); border-top-color: #000; border-radius: 50%; animation: spin 0.6s linear infinite; display: none; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      #error-msg { color: #ef4444; margin-top: 15px; font-size: 14px; min-height: 20px; text-shadow: 0 0 10px rgba(239, 68, 68, 0.3); }
+      #sso-section { display: none; margin-top: 20px; }
+      .sso-loader { width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid var(--primary); border-radius: 50%; animation: spin 1s infinite linear; margin: 0 auto 10px; }
+      @keyframes fadeInOverlay { from { opacity: 0; backdrop-filter: blur(0px); } to { opacity: 1; backdrop-filter: blur(10px); } }
+      @keyframes bouncePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+    </style>
+  </head>
+  <body>
+
+    <div class="speed-bg">
+      <div class="streak"></div><div class="streak"></div><div class="streak"></div>
+      <div class="streak"></div><div class="streak"></div>
+    </div>
+
+    <div class="login-container">
+      <div class="card">
+        <div class="logo-box">
+          <svg viewBox="0 0 24 24">
+             <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
+          </svg>
+        </div>
+        <h2>VKT LEAVE</h2>
+        <p class="subtitle">เข้าสู่ระบบด้วยความเร็วแสง</p>
+
+        <div id="normal-login">
+          <div class="form-group">
+            <input type="text" id="username" placeholder="ชื่อผู้ใช้ (Username)" autocomplete="off">
+            <i class="fa-solid fa-user"></i>
+          </div>
+          <div class="form-group">
+            <input type="password" id="password" placeholder="รหัสผ่าน (Password)">
+            <i class="fa-solid fa-lock"></i>
+          </div>
+          <button id="login-btn" onclick="handleLogin()">
+            <div class="spinner" id="btn-loader"></div>
+            <span id="btn-text">⚡ เข้าสู่ระบบ</span>
+          </button>
+        </div>
+
+        <div id="sso-section">
+           <div class="sso-loader"></div>
+           <p style="color:#94a3b8; font-size:14px;" id="sso-text">กำลังตรวจสอบสิทธิ์...</p>
+        </div>
+        <p id="error-msg"></p>
+      </div>
+    </div>
+
+    <!-- เรียกใช้ไฟล์ API.js เพื่อลิงก์ไปฝั่ง GAS -->
+    <script src="api.js"></script>
+    <script>
+      const dom = {
+        user: document.getElementById("username"), pass: document.getElementById("password"),
+        btn: document.getElementById("login-btn"), btnText: document.getElementById("btn-text"), btnLoader: document.getElementById("btn-loader"),
+        error: document.getElementById("error-msg"), normalSec: document.getElementById("normal-login"),
+        ssoSec: document.getElementById("sso-section"), ssoText: document.getElementById("sso-text"), ssoLoader: document.querySelector(".sso-loader")
+      };
+
+      function setLoading(isLoading) {
+        if(isLoading) {
+          dom.btn.disabled = true; dom.btnText.textContent = "กำลังตรวจสอบ..."; dom.btnLoader.style.display = "block"; dom.error.textContent = "";
+        } else {
+          dom.btn.disabled = false; dom.btnText.textContent = "⚡ เข้าสู่ระบบ"; dom.btnLoader.style.display = "none";
+        }
+      }
+
+      function showError(msg) {
+        dom.error.textContent = msg;
+        const card = document.querySelector('.card');
+        card.animate([ { transform: 'translateX(0)' }, { transform: 'translateX(-5px)' }, { transform: 'translateX(5px)' }, { transform: 'translateX(0)' } ], { duration: 300 });
+      }
+
+      dom.user.addEventListener("keydown", e => { if(e.key==="Enter") dom.pass.focus(); });
+      dom.pass.addEventListener("keydown", e => { if(e.key==="Enter") handleLogin(); });
+
+      async function handleLogin() {
+        const u = dom.user.value.trim(); const p = dom.pass.value.trim();
+        if(!u || !p) { showError("กรุณากรอกข้อมูลให้ครบ"); return; }
+        
+        setLoading(true);
+        try {
+          const res = await apiCall('authenticateUser', {username: u, password: p});
+          if(res.success) {
+            localStorage.setItem('sessionToken', res.token);
+            dom.btnText.textContent = "สำเร็จ!";
+            dom.btn.style.background = "linear-gradient(90deg, #fde047, #10b981)";
+            showFullscreenRedirect(res.isAdmin, res.tempToken || res.token);
+          } else {
+            setLoading(false); showError(res.message); dom.pass.value = "";
+          }
+        } catch(e) { setLoading(false); showError(e.message); }
+      }
+
+      function showFullscreenRedirect(isAdmin, token) {
+         const page = isAdmin ? "admin.html" : "index.html";
+         
+         const overlay = document.createElement('a');
+         overlay.href = page;
+         overlay.style.cssText = `position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(16, 185, 129, 0.95); z-index: 99999; display: flex; flex-direction: column; justify-content: center; align-items: center; text-decoration: none; color: white; font-family: 'Prompt', sans-serif; animation: fadeInOverlay 0.4s ease-out forwards;`;
+         overlay.innerHTML = `<i class="fa-solid fa-circle-check" style="font-size: 80px; margin-bottom: 20px; animation: bouncePulse 2s infinite;"></i><h2 style="margin:0; font-size:28px; font-weight:700; text-shadow: 0 2px 10px rgba(0,0,0,0.2);">เข้าสู่ระบบสำเร็จ!</h2><div style="margin-top:20px; padding: 10px 25px; background: rgba(0,0,0,0.2); border-radius: 50px; font-size:16px;">👉 แตะหน้าจอเพื่อเริ่มต้น 👈</div>`;
+         document.body.appendChild(overlay);
+         
+         setTimeout(() => { window.location.replace(page); }, 1000);
+      }
+
+      async function checkSSO() {
+         const urlParams = new URLSearchParams(window.location.search);
+         const ssoUser = urlParams.get('sso_user');
+         const ssoToken = urlParams.get('sso_token');
+
+         if (ssoUser && ssoToken) {
+             dom.normalSec.style.display = 'none'; dom.ssoSec.style.display = 'block';
+             try {
+                const res = await apiCall('handleSSOLoginClientSide', {user: ssoUser, token: ssoToken});
+                if (res.success) {
+                    localStorage.setItem('sessionToken', res.token);
+                    dom.ssoLoader.style.display = 'none';
+                    dom.ssoText.innerHTML = '<span style="color:#10b981; font-weight:bold;">ยืนยันตัวตนเรียบร้อย</span>';
+                    showFullscreenRedirect(res.isAdmin, res.tempToken || res.token);
+                } else {
+                    throw new Error(res.message);
+                }
+             } catch(e) {
+                dom.ssoLoader.style.display = 'none';
+                dom.ssoText.innerHTML = '<span style="color:#ef4444;">' + e.message + '</span>';
+                setTimeout(() => { dom.ssoSec.style.display = 'none'; dom.normalSec.style.display = 'block'; showError(e.message); }, 2000);
+             }
+         }
+      }
+      checkSSO();
+    </script>
+  </body>
+</html>
