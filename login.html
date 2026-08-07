@@ -82,7 +82,6 @@
       </div>
     </div>
 
-    <!-- เรียกใช้ไฟล์ API.js เพื่อลิงก์ไปฝั่ง GAS -->
     <script src="api.js"></script>
     <script>
       const dom = {
@@ -91,6 +90,23 @@
         error: document.getElementById("error-msg"), normalSec: document.getElementById("normal-login"),
         ssoSec: document.getElementById("sso-section"), ssoText: document.getElementById("sso-text"), ssoLoader: document.querySelector(".sso-loader")
       };
+
+      // -----------------------------------------------------------
+      // 🚀 ระบบ AUTO-LOGIN (ดักจับลิงก์เก่า หรือคนที่เคยล็อกอินแล้ว)
+      // -----------------------------------------------------------
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlAuth = urlParams.get('auth');
+      const urlPage = urlParams.get('page');
+      
+      // 1. ถ้ากดมาจากลิงก์เก่าที่มี ?auth=... ติดมาด้วย ให้เข้าสู่ระบบและข้ามหน้า Login ทันที!
+      if (urlAuth) {
+          localStorage.setItem('sessionToken', urlAuth);
+          window.location.replace(urlPage === 'admin' ? 'admin.html' : 'index.html');
+      } 
+      // 2. ถ้าในเครื่องเคยล็อกอินไว้แล้ว ให้ข้ามหน้า Login ทันที! (ไม่ต้องพิมพ์รหัสใหม่)
+      else if (localStorage.getItem('sessionToken') && !urlParams.get('sso_user')) {
+          window.location.replace('index.html');
+      }
 
       function setLoading(isLoading) {
         if(isLoading) {
@@ -118,29 +134,15 @@
           const res = await apiCall('authenticateUser', {username: u, password: p});
           if(res.success) {
             localStorage.setItem('sessionToken', res.token);
-            dom.btnText.textContent = "สำเร็จ!";
-            dom.btn.style.background = "linear-gradient(90deg, #fde047, #10b981)";
-            showFullscreenRedirect(res.isAdmin, res.tempToken || res.token);
+            // ล็อกอินผ่านปุ๊บ เด้งไปหน้าแอปทันที (ลบเอฟเฟกต์ที่ต้องให้คลิกหน้าจอทิ้ง)
+            window.location.replace(res.isAdmin ? "admin.html" : "index.html");
           } else {
             setLoading(false); showError(res.message); dom.pass.value = "";
           }
         } catch(e) { setLoading(false); showError(e.message); }
       }
 
-      function showFullscreenRedirect(isAdmin, token) {
-         const page = isAdmin ? "admin.html" : "index.html";
-         
-         const overlay = document.createElement('a');
-         overlay.href = page;
-         overlay.style.cssText = `position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(16, 185, 129, 0.95); z-index: 99999; display: flex; flex-direction: column; justify-content: center; align-items: center; text-decoration: none; color: white; font-family: 'Prompt', sans-serif; animation: fadeInOverlay 0.4s ease-out forwards;`;
-         overlay.innerHTML = `<i class="fa-solid fa-circle-check" style="font-size: 80px; margin-bottom: 20px; animation: bouncePulse 2s infinite;"></i><h2 style="margin:0; font-size:28px; font-weight:700; text-shadow: 0 2px 10px rgba(0,0,0,0.2);">เข้าสู่ระบบสำเร็จ!</h2><div style="margin-top:20px; padding: 10px 25px; background: rgba(0,0,0,0.2); border-radius: 50px; font-size:16px;">👉 แตะหน้าจอเพื่อเริ่มต้น 👈</div>`;
-         document.body.appendChild(overlay);
-         
-         setTimeout(() => { window.location.replace(page); }, 1000);
-      }
-
       async function checkSSO() {
-         const urlParams = new URLSearchParams(window.location.search);
          const ssoUser = urlParams.get('sso_user');
          const ssoToken = urlParams.get('sso_token');
 
@@ -150,9 +152,8 @@
                 const res = await apiCall('handleSSOLoginClientSide', {user: ssoUser, token: ssoToken});
                 if (res.success) {
                     localStorage.setItem('sessionToken', res.token);
-                    dom.ssoLoader.style.display = 'none';
-                    dom.ssoText.innerHTML = '<span style="color:#10b981; font-weight:bold;">ยืนยันตัวตนเรียบร้อย</span>';
-                    showFullscreenRedirect(res.isAdmin, res.tempToken || res.token);
+                    // SSO ผ่านปุ๊บ เด้งไปหน้าแอปทันที
+                    window.location.replace(res.isAdmin ? "admin.html" : "index.html");
                 } else {
                     throw new Error(res.message);
                 }
